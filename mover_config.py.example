@@ -1,0 +1,4 @@
+import pathlib
+
+STORAGE = pathlib.Path().cwd().joinpath('storage')
+END_POINTS = ['http://xxx.xxx.xxx.xxx:1258', 'http://xxx.xxx.xxx.xxx:1258']

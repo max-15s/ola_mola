@@ -32,7 +32,7 @@ class downloaderClass:
                 # for i in files['files']:
                 #     self.download_file(pathlib.PurePosixPath(i.strip()), pathlib.PurePosixPath(home.strip()),
                 #                          pathlib.PurePosixPath(root.strip()), file_servers)
-                servers.append({'endpoint': address, 'content': response.json()})
+                servers.append({'endpoint': address, 'content': response.json().get(files)})
         return servers
 
     def download_folder(self, home: pathlib.Path, root: pathlib.Path) -> bool:

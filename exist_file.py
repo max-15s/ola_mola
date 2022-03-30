@@ -17,42 +17,27 @@ class downloaderClass:
         self.storage = storage
         self.endpoints = endpoints
 
-    def get_response(self, server, home_response, root_response):
+    def get_response(self, home_response, root_response):
         servers = list()
         params = {
             'home': str(home_response),
             'root': str(root_response)
         }
-        server += '/description'
-        response = requests.post(server, params=params)
         for address in self.endpoints:
-            # files = self.get_response(address, pathlib.PurePosixPath(home.strip()), pathlib.PurePosixPath(root.strip()))
-            files = response.json()
-            file_servers = address
-            if 'files' in files:
-                for i in files['files']:
-                    self.download_file(pathlib.PurePosixPath(i.strip()), pathlib.PurePosixPath(home.strip()),
-                                         pathlib.PurePosixPath(root.strip()), file_servers)
-            servers.append({'endpoint': address, 'content': response.json()})
 
+            server = address + '/description'
+            response = requests.post(server, params=params)
+            files = response.json()
+            # file_servers = address
+            if 'files' in files:
+                # for i in files['files']:
+                #     self.download_file(pathlib.PurePosixPath(i.strip()), pathlib.PurePosixPath(home.strip()),
+                #                          pathlib.PurePosixPath(root.strip()), file_servers)
+                servers.append({'endpoint': address, 'content': response.json()})
         return servers
 
-    def download_file(self, file_address: pathlib.Path, home: pathlib.Path, root: pathlib.Path, server) -> bool:
-        params = {
-            'file_path': str(file_address)
-        }
-        file_server = server + '/file'
-        file2 = file_address
-        file_home = str(home.joinpath(root))
-        with requests.post(file_server, params=params, stream=True) as response2:
-            local_filename = self.storage / root / file2.relative_to(file_home)
-            local_filename.parent.mkdir(parents=True, exist_ok=True)
-            with open(local_filename, 'wb') as f:
-                for chunk in response2.iter_content(chunk_size=1024):
-                    f.write(chunk)
-
     def download_folder(self, home: pathlib.Path, root: pathlib.Path) -> bool:
-        folder = self.get_response(self.endpoints, home, root)
+        folder = self.get_response(home, root)[0]
         if self.download_file.response2.headers['checksum'] == _get_directory_checksum(pathlib.Path(self.download_file.local_filename)):
             return True
         else:

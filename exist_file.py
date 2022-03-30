@@ -5,32 +5,37 @@ import hashlib
 import requests
 
 
+def _get_directory_checksum(folder: pathlib.Path) -> str:
+    if folder.is_dir():
+        return dirhash(str(folder), 'md5')
+    else:
+        return checksumdir._filehash(str(folder), hashlib.md5)
+
+
 class downloaderClass:
     def __init__(self, storage: pathlib.Path, endpoints: list):
         self.storage = storage
         self.endpoints = endpoints
-        for address in self.endpoints:
-            files = self.get_response(address, pathlib.PurePosixPath(home.strip()), pathlib.PurePosixPath(root.strip()))
-            file_servers = address
-            if 'files' in files:
-                for i in files['files']:
-                    self.download_file(pathlib.PurePosixPath(i.strip()), pathlib.PurePosixPath(home.strip()),
-                                         pathlib.PurePosixPath(root.strip()), file_servers)
 
     def get_response(self, server, home_response, root_response):
+        servers = list()
         params = {
             'home': str(home_response),
             'root': str(root_response)
         }
         server += '/description'
         response = requests.post(server, params=params)
-        return response.json()
+        for address in self.endpoints:
+            # files = self.get_response(address, pathlib.PurePosixPath(home.strip()), pathlib.PurePosixPath(root.strip()))
+            files = response.json()
+            file_servers = address
+            if 'files' in files:
+                for i in files['files']:
+                    self.download_file(pathlib.PurePosixPath(i.strip()), pathlib.PurePosixPath(home.strip()),
+                                         pathlib.PurePosixPath(root.strip()), file_servers)
+            servers.append({'endpoint': address, 'content': response.json()})
 
-    def _get_directory_checksum(self, folder: pathlib.Path) -> str:
-        if folder.is_dir():
-            return dirhash(str(folder), 'md5')
-        else:
-            return checksumdir._filehash(str(folder), hashlib.md5)
+        return servers
 
     def download_file(self, file_address: pathlib.Path, home: pathlib.Path, root: pathlib.Path, server) -> bool:
         params = {
@@ -47,7 +52,8 @@ class downloaderClass:
                     f.write(chunk)
 
     def download_folder(self, home: pathlib.Path, root: pathlib.Path) -> bool:
-        if self.download_file.response2.headers['checksum'] == self._get_directory_checksum(pathlib.Path(self.download_file.local_filename)):
+        folder = self.get_response(self.endpoints, home, root)
+        if self.download_file.response2.headers['checksum'] == _get_directory_checksum(pathlib.Path(self.download_file.local_filename)):
             return True
         else:
             return False

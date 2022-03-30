@@ -24,7 +24,6 @@ class downloaderClass:
             'root': str(root_response)
         }
         for address in self.endpoints:
-
             server = address + '/description'
             response = requests.post(server, params=params)
             files = response.json()
@@ -38,10 +37,13 @@ class downloaderClass:
 
     def download_folder(self, home: pathlib.Path, root: pathlib.Path) -> bool:
         folder = self.get_response(home, root)[0]
-        if self.download_file.response2.headers['checksum'] == _get_directory_checksum(pathlib.Path(self.download_file.local_filename)):
+        if folder:
             return True
-        else:
-            return False
+        # if self.download_file.response2.headers['checksum'] == \
+        #         _get_directory_checksum(pathlib.Path(self.download_file.local_filename)):
+        #     return True
+        # else:
+        #     return False
 
 
 if __name__ == '__main__':

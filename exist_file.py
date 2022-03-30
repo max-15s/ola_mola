@@ -17,7 +17,7 @@ class downloaderClass:
         self.storage = storage
         self.endpoints = endpoints
 
-    def get_response(self, home_response, root_response):
+    def get_response(self, home_response, root_response) -> list:
         servers = list()
         params = {
             'home': str(home_response),
@@ -35,8 +35,28 @@ class downloaderClass:
                 servers.append({'endpoint': address, 'content': response.json().get(files)})
         return servers
 
+    def download_file(self, server, file_list) -> list:
+        for file in file_list:
+            file_address = server
+            params = {
+                'file_path': str(file_address)
+            }
+            file_server = server + '/file'
+            file2 = file_address
+            file_home = str(home.joinpath(root))
+            with requests.post(file_server, params=params, stream=True) as response2:
+                local_filename = self.storage / root / file2.relative_to(file_home)
+                local_filename.parent.mkdir(parents=True, exist_ok=True)
+                with open(local_filename, 'wb') as f:
+                    for chunk in response2.iter_content(chunk_size=1024):
+                        f.write(chunk)
+        folder_checksum = _get_directory_checksum(pathlib.Path(local_filename))
+        return [local_filename, folder_checksum]
+
     def download_folder(self, home: pathlib.Path, root: pathlib.Path) -> bool:
-        folder = self.get_response(home, root)[0]
+        folder = self.get_response(home, root)
+        for each in folder:
+            self.download_file(each['endpoint'], each['content'])
         if folder:
             return True
         # if self.download_file.response2.headers['checksum'] == \

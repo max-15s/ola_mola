@@ -32,7 +32,7 @@ class downloaderClass:
                 # for i in files['files']:
                 #     self.download_file(pathlib.PurePosixPath(i.strip()), pathlib.PurePosixPath(home.strip()),
                 #                          pathlib.PurePosixPath(root.strip()), file_servers)
-                servers.append({'endpoint': address, 'content': response.json().get(files)})
+                servers.append({'endpoint': address, 'content': files['files']})
         return servers
 
     def download_file(self, server, file_list) -> list:
@@ -73,4 +73,4 @@ if __name__ == '__main__':
         home, root = r.readlines()
 
     d = downloaderClass(mover_config.STORAGE, mover_config.END_POINTS)
-    print(d.download_folder(home, root))
+    print(d.download_folder(home.strip(), root.strip()))

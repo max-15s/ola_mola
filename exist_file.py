@@ -28,12 +28,12 @@ class downloaderClass:
             server = address + '/description'
             try:
                 response = requests.post(server, params=params)
-                files = response.json()
                 if response.status_code == 200:
+                    files = response.json()
                     if 'files' in files:
                         servers.append({'endpoint': address, 'content': files['files']})
                 else:
-                    logger.info(f'{address}: Error {files["status"]}')
+                    logger.info(f'{address}: Error {response.status_code}')
             except Exception as e:
                 logger.error(f'{e.__class__.__name__}: {address}')
                 logger.exception(e)
@@ -42,22 +42,28 @@ class downloaderClass:
     def download_file(self, server, file_list, home2: pathlib.Path, root2: pathlib.Path) -> list:
         homee = pathlib.Path(str(home2).strip())
         roott = pathlib.Path(str(root2).strip())
+        file_server = server + '/file'
+        file_home = homee.joinpath(roott)
         for file in file_list:
             params = {
                 'file_path': str(file)
             }
-            file_server = server + '/file'
-            file_home = homee.joinpath(roott)
             with requests.post(file_server, params=params, stream=True) as response2:
-                local_filename = self.storage / roott / pathlib.Path(file).relative_to(file_home)
-                local_filename.parent.mkdir(parents=True, exist_ok=True)
-                with open(local_filename, 'wb') as f:
-                    for chunk in response2.iter_content(chunk_size=1024):
-                        f.write(chunk)
+                for i in range(5):
+                    local_filename = self.storage / roott / pathlib.Path(file).relative_to(file_home)
+                    local_filename.parent.mkdir(parents=True, exist_ok=True)
+                    with open(local_filename, 'wb') as f:
+                        for chunk in response2.iter_content(chunk_size=1024):
+                            f.write(chunk)
+                    file_checksum = _get_directory_checksum(local_filename)
+                    if file_checksum == response2.headers['checksum']:
+                        break
+                    elif i >= 5:
+                        raise FileNotFoundError("files checksum don't match")
         folder_checksum = _get_directory_checksum(self.storage / roott)
         return [self.storage / roott, folder_checksum]
 
-    def download_folder(self, taken_home: pathlib.Path, taken_root: pathlib.Path): # -> bool:
+    def download_folder(self, taken_home: pathlib.Path, taken_root: pathlib.Path):  # -> bool:
         folder = self.get_response(taken_home, taken_root)
         for each in folder:
             checksum = self.download_file(each['endpoint'], each['content'], taken_home, taken_root)

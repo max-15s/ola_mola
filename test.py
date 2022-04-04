@@ -1,30 +1,16 @@
-import pathlib
-import mover_config
-import checksumdir as checksumdir
-from checksumdir import dirhash
-import hashlib
-import requests
+# files = self.get_response(address, pathlib.PurePosixPath(home.strip()), pathlib.PurePosixPath(root.strip()))
 
 
-def get_response():
-    headers = {
-        'accept': 'application/json',
-    }
-
-    params = {
-        'home': '/opt/rahkar/udemy/json_panel/udemy/',
-        'root': '2503776',
-    }
-
-    response = requests.post('http://64.20.61.237:1258/description/', headers=headers, params=params)
-    print(response.json())
-    return response.json()
-
-
-get_response()
-#
-# d = get_response(mover_config.STORAGE, mover_config.END_POINTS)
-#
-# # d.download_folder(pathlib.Path(home.strip()), pathlib.Path(root.strip()))
-# address = mover_config.END_POINTS[0] + '/description'
-# d.get_response(address, pathlib.Path(home.strip()), pathlib.Path(root.strip()))
+# def download_file(self, file_address: pathlib.Path, home: pathlib.Path, root: pathlib.Path, server) -> bool:
+#     params = {
+#         'file_path': str(file_address)
+#     }
+#     file_server = server + '/file'
+#     file2 = file_address
+#     file_home = str(home.joinpath(root))
+#     with requests.post(file_server, params=params, stream=True) as response2:
+#         local_filename = self.storage / root / file2.relative_to(file_home)
+#         local_filename.parent.mkdir(parents=True, exist_ok=True)
+#         with open(local_filename, 'wb') as f:
+#             for chunk in response2.iter_content(chunk_size=1024):
+#                 f.write(chunk)

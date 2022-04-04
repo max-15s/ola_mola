@@ -58,8 +58,10 @@ class downloaderClass:
                     file_checksum = _get_directory_checksum(local_filename)
                     if file_checksum == response2.headers['checksum']:
                         break
-                    elif i >= 5:
-                        raise FileNotFoundError("files checksum don't match")
+                else:
+                    logger.error(f"checksum for file: **{file}** In server: **{file_server}** doesn't match with "
+                                 f"file's checksum in local storage")
+                    raise FileNotFoundError("files checksum don't match")
         folder_checksum = _get_directory_checksum(self.storage / roott)
         return [self.storage / roott, folder_checksum]
 

@@ -3,6 +3,7 @@ import checksumdir as checksumdir
 from checksumdir import dirhash
 import hashlib
 import requests
+from logzero import logger
 
 
 def _get_directory_checksum(folder: pathlib.Path) -> str:
@@ -25,22 +26,31 @@ class downloaderClass:
         }
         for address in self.endpoints:
             server = address + '/description'
-            response = requests.post(server, params=params)
-            files = response.json()
-            response_checksum = requests.post(address + '/checksum', params={'folder_root': str(home_response + root_response)})
-            md5 = response_checksum.json()
-            if 'files' in files:
-                servers.append({'endpoint': address, 'content': files['files'], 'checksum': md5['md5']})
+            try:
+                response = requests.post(server, params=params)
+                files = response.json()
+                if files['status'] == 200:
+                    response_checksum = requests.post(address + '/checksum',
+                                                      params={'folder_root': str(home_response + root_response)})
+                    md5 = response_checksum.json()
+                    if 'files' in files:
+                        servers.append({'endpoint': address, 'content': files['files'], 'checksum': md5['md5']})
+                else:
+                    logger.debug(f'{address}: Error {files["status"]}')
+            except Exception as e:
+                logger.debug(f'{e.__class__.__name__}: {address}')
+                # logger.exception(e)
+                # logger.debug('timeout')
         return servers
 
-    def download_file(self, server, file_list, home2, root2) -> list:
+    def download_file(self, server, file_list, home2: pathlib.Path, root2: pathlib.Path) -> list:
         for file in file_list:
             params = {
-                'file_path': str(server)
+                'file_path': str(file)
             }
             file_server = server + '/file'
-            homee = pathlib.Path(home2.strip())
-            roott = pathlib.Path(root2.strip())
+            homee = pathlib.Path(str(home2).strip())
+            roott = pathlib.Path(str(root2).strip())
             file_home = homee.joinpath(roott)
             with requests.post(file_server, params=params, stream=True) as response2:
                 local_filename = self.storage / roott / pathlib.Path(file).relative_to(file_home)
@@ -51,12 +61,12 @@ class downloaderClass:
             folder_checksum = _get_directory_checksum(self.storage / roott)
         return [self.storage / roott, folder_checksum]
 
-    def download_folder(self, taken_home: pathlib.Path, taken_root: pathlib.Path) -> bool:
+    def download_folder(self, taken_home: pathlib.Path, taken_root: pathlib.Path): # -> bool:
         folder = self.get_response(taken_home, taken_root)
         for each in folder:
             checksum = self.download_file(each['endpoint'], each['content'], taken_home, taken_root)
             if checksum[1] == each['checksum']:
-                return True
+                return True, each['endpoint']
             else:
                 return False
 
@@ -68,4 +78,8 @@ if __name__ == '__main__':
         home, root = r.readlines()
 
     d = downloaderClass(mover_config.STORAGE, mover_config.END_POINTS)
-    print(d.download_folder(home.strip(), root.strip()))
+    result = d.download_folder(home.strip(), root.strip())
+    if result is None:
+        print("Files don't exist in any server")
+    else:
+        print(f"{result[1]}: {result[0]}")

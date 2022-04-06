@@ -17,9 +17,10 @@ def _get_directory_checksum(folder: pathlib.Path) -> str:
 
 
 class downloaderClass:
-    def __init__(self, storage: pathlib.Path, endpoints: list):
+    def __init__(self, storage: pathlib.Path, endpoints: list, semaphore_size=5):
         self.storage = storage
         self.endpoints = endpoints
+        self.sem = asyncio.Semaphore(semaphore_size)
 
     def get_response(self, home_response, root_response) -> list:
         servers = list()
@@ -51,33 +52,32 @@ class downloaderClass:
         :param url:
         :return:
         """
-        params = {
-            'file_path': str(file)
-        }
-        save_path = self.storage / pathlib.Path(file).relative_to(home)
-        save_path.parent.mkdir(parents=True, exist_ok=True)
-        for i in range(5):
-            r = await session.post(url, params=params, ssl=False)
-            if r.status == 200:
-                async with aiofiles.open(save_path, 'wb') as f:
-                    async for data in r.content.iter_any():
-                        await f.write(data)
-                if _get_directory_checksum(save_path) == r.headers['checksum']:
-                    return True
-        else:
-            return False
+        async with self.sem, session as session:
+            params = {
+                'file_path': str(file)
+            }
+            save_path = self.storage / pathlib.Path(file).relative_to(home)
+            save_path.parent.mkdir(parents=True, exist_ok=True)
+            for i in range(5):
+                r = await session.post(url, params=params, ssl=False)
+                if r.status == 200:
+                    async with aiofiles.open(save_path, 'wb') as f:
+                        async for data in r.content.iter_any():
+                            await f.write(data)
+                    if _get_directory_checksum(save_path) == r.headers['checksum']:
+                        return True
+            else:
+                return False
 
     async def download_file(self, server, file_list, home2: pathlib.Path, root2: pathlib.Path) -> list:
         file_server = server + '/file'
-
         async with aiohttp.ClientSession() as session:
             var = await asyncio.gather(*[self.fetch(session, file_server, home2, file) for file in file_list])
             assert len(var) == sum(var), FileNotFoundError("files checksum don't match")
-
         folder_checksum = _get_directory_checksum(self.storage / root2)
         return [self.storage / root2, folder_checksum]
 
-    def download_folder(self, taken_home: pathlib.Path, taken_root: pathlib.Path) -> bool:
+    def download_folder(self, taken_home: pathlib.Path, taken_root: pathlib.Path):
         folder = self.get_response(taken_home, taken_root)
         for each in folder:
             loop = asyncio.get_event_loop()
@@ -94,19 +94,11 @@ class downloaderClass:
                 return False, each['endpoint']
 
 
-async def main(url, file_list, home):
-    d = downloaderClass('t5fr', 'edde')
-    async with aiohttp.ClientSession() as session:
-        var = await asyncio.gather(*[d.fetch(session, url, home, file) for file in file_list])
-    print(var)
-
-
 if __name__ == '__main__':
     import mover_config
 
     with open('file_path.txt', 'r') as r:
         home, root = r.readlines()
-
     d = downloaderClass(mover_config.STORAGE, mover_config.END_POINTS)
     result = d.download_folder(home.strip(), root.strip())
     if result is None:

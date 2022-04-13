@@ -52,7 +52,7 @@ class downloaderClass:
         :param url:
         :return:
         """
-        async with self.sem, session as session:
+        async with self.sem:
             params = {
                 'file_path': str(file)
             }

@@ -4,6 +4,9 @@ from checksumdir import dirhash
 import hashlib
 import requests
 from logzero import logger
+import aiohttp
+import aiofiles
+import asyncio
 
 
 def _get_directory_checksum(folder: pathlib.Path) -> str:
@@ -14,9 +17,10 @@ def _get_directory_checksum(folder: pathlib.Path) -> str:
 
 
 class downloaderClass:
-    def __init__(self, storage: pathlib.Path, endpoints: list):
+    def __init__(self, storage: pathlib.Path, endpoints: list, semaphore_size=5):
         self.storage = storage
         self.endpoints = endpoints
+        self.sem = asyncio.Semaphore(semaphore_size)
 
     def get_response(self, home_response, root_response) -> list:
         servers = list()
@@ -39,36 +43,48 @@ class downloaderClass:
                 logger.exception(e)
         return servers
 
-    def download_file(self, server, file_list, home2: pathlib.Path, root2: pathlib.Path) -> list:
-        homee = pathlib.Path(str(home2).strip())
-        roott = pathlib.Path(str(root2).strip())
-        file_server = server + '/file'
-        file_home = homee.joinpath(roott)
-        for file in file_list:
+    async def fetch(self, session: aiohttp.ClientSession, url: str, home, file) -> bool:
+        """
+
+        :param file:
+        :param home:
+        :param session:
+        :param url:
+        :return:
+        """
+        async with self.sem:
             params = {
                 'file_path': str(file)
             }
-            with requests.post(file_server, params=params, stream=True) as response2:
-                for i in range(5):
-                    local_filename = self.storage / roott / pathlib.Path(file).relative_to(file_home)
-                    local_filename.parent.mkdir(parents=True, exist_ok=True)
-                    with open(local_filename, 'wb') as f:
-                        for chunk in response2.iter_content(chunk_size=1024):
-                            f.write(chunk)
-                    file_checksum = _get_directory_checksum(local_filename)
-                    if file_checksum == response2.headers['checksum']:
-                        break
-                else:
-                    logger.error(f"checksum for file: **{file}** In server: **{file_server}** doesn't match with "
-                                 f"file's checksum in local storage")
-                    raise FileNotFoundError("files checksum don't match")
-        folder_checksum = _get_directory_checksum(self.storage / roott)
-        return [self.storage / roott, folder_checksum]
+            save_path = self.storage / pathlib.Path(file).relative_to(home)
+            save_path.parent.mkdir(parents=True, exist_ok=True)
+            for i in range(5):
+                r = await session.post(url, params=params, ssl=False)
+                if r.status == 200:
+                    async with aiofiles.open(save_path, 'wb') as f:
+                        async for data in r.content.iter_any():
+                            await f.write(data)
+                    if _get_directory_checksum(save_path) == r.headers['checksum']:
+                        return True
+            else:
+                return False
 
-    def download_folder(self, taken_home: pathlib.Path, taken_root: pathlib.Path):  # -> bool:
+    async def download_file(self, server, file_list, home2: pathlib.Path, root2: pathlib.Path) -> list:
+        file_server = server + '/file'
+        async with aiohttp.ClientSession() as session:
+            var = await asyncio.gather(*[self.fetch(session, file_server, home2, file) for file in file_list])
+            assert len(var) == sum(var), FileNotFoundError("files checksum don't match")
+        folder_checksum = _get_directory_checksum(self.storage / root2)
+        return [self.storage / root2, folder_checksum]
+
+    def download_folder(self, taken_home: pathlib.Path, taken_root: pathlib.Path):
         folder = self.get_response(taken_home, taken_root)
         for each in folder:
-            checksum = self.download_file(each['endpoint'], each['content'], taken_home, taken_root)
+            loop = asyncio.get_event_loop()
+            checksum = loop.run_until_complete(
+                self.download_file(each['endpoint'], each['content'], taken_home, taken_root)
+            )
+            loop.close()
             response_checksum = requests.post(each['endpoint'] + '/checksum',
                                               params={'folder_root': str(taken_home) + str(taken_root)})
             md5 = response_checksum.json()
@@ -83,7 +99,6 @@ if __name__ == '__main__':
 
     with open('file_path.txt', 'r') as r:
         home, root = r.readlines()
-
     d = downloaderClass(mover_config.STORAGE, mover_config.END_POINTS)
     result = d.download_folder(home.strip(), root.strip())
     if result is None:
